@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width">
+		<title>TypeScript and Babel</title>
+		<style>
+			html, body {
+				margin: 0;
+				padding: 0;
+				height: 100%;
+				width: 100%;
+				box-sizing: border-box;
+			}
+			*, *:before, *:after {
+				box-sizing: inherit;
+			}
+			#left {
+				display: -webkit-flex;
+				display: flex;
+				float: left;
+				width: 50%;
+				height: 100%;
+				-webkit-flex-flow: column nowrap;
+				flex-flow: column nowrap;
+				overflow: hidden;
+				border-right: 3px solid #bbb;
+			}
+			#right {
+				float: right;
+				width: 50%;
+				height: 100%;
+				flex-flow: column nowrap;
+				overflow: hidden;
+			}
+			#editor {
+				width: 100%;
+				height: 74%;
+				border-bottom: 2px solid #bbb;
+			}
+			#commandbar {
+				display: flex;
+				width: 100%;
+				height: 6%;
+				background-color: lightblue;
+				padding: 4px;
+				-webkit-justify-content: space-around;
+				justify-content: space-around;
+				-webkit-align-items: center;
+				align-items: center;
+			}
+			#log {
+				width: 100%;
+				height: 20%;
+				padding: 0;
+				margin: 0;
+				overflow: scroll;
+			}
+			#procview {
+				width: 100%;
+				height: 94%;
+				display: none;
+			}
+			#presentation {
+				width: 100%;
+				height: 94%;
+				padding: 20px;
+				background-color: #d7d8d2;
+			}
+			#selectview {
+				display: -webkit-flex;
+				display: flex;
+				width: 100%;
+				height: 6%;
+				background-color: lightblue;
+				padding: 4px;
+				-webkit-justify-content: space-around;
+				justify-content: space-around;
+				-webkit-align-items: center;
+				align-items: center;
+			}
+			select, button {
+				font-family: Arial, Sans-serif;
+				font-size: 13px;
+				background-color:#ededed;
+				-moz-border-radius:7px;
+				-webkit-border-radius:7px;
+				border-radius:7px;
+				border:2px solid #bbb;
+				display:inline-block;
+				cursor:pointer;
+				color:#000000;
+				padding:6px 8px;
+				text-decoration:none;
+			}
+			button:hover {
+				background-color:#bab1ba;
+			}
+			button:active {
+				position:relative;
+				top:1px;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="left">
+			<iframe id="editor" src="ace-editor.html" seamless></iframe>
+			<div id="commandbar">
+				<select id="load" class="form-control">
+					<option value="" selected>-- Load Exercise --</option>
+					<option value="let.js">"let" Statement</option>
+					<option value="const.js">"const" Statement</option>
+					<option value="arrow.js">Arrow Functions</option>
+					<option value="templstr.js">Template Strings</option>
+					<option value="class.js">Classes</option>
+					<option value="jquery.d.ts">JQuery Definition</option>
+					<option value="namespace.ts">Namespaces</option>
+					<option value="enum.ts">Enums</option>
+					<option value="async.js">ES7 async/await</option>
+				</select>
+				<select id="pptype" class="form-control">
+					<option value="None" selected>No Preprocessing</option>
+					<option value="BABEL">Babel to ES5</option>
+					<option value="TStoES5">TypeScript to ES5</option>
+					<option value="TStoES6">TypeScript to ES6</option>
+					<option value="TSBABEL">TS->ES6,Babel->ES5</option>
+				</select>
+				<button id="execute" class="btn btn-lg btn-default" disabled>Execute</button>
+			</div>
+			<pre id="log"></pre>
+		</div>
+		<div id="right">
+				<div id="selectview">
+					<button id="viewtoggle">View Preprocessed Code</button>
+				</div>
+				<iframe id="presentation" src="single_pg_pres.html" seamless></iframe>
+				<iframe id="procview" src="ace-editor.html" seamless></iframe>
+		</div>
+		<script src="fetch.js" type="text/javascript"></script>
+		<script src="promise.min.js" type="text/javascript"></script>
+		<script src="typescript.js" type="text/javascript"></script>
+		<script src="babel.js" type="text/javascript"></script>
+		<script src="runtime.js" type="text/javascript"></script>
+		<script src="tscmini.js" type="text/javascript"></script>
+		<script type="text/javascript">
+			var app = {
+				currentView: "slides",
+				switchView: function(type) {
+						var vt = document.getElementById("viewtoggle");
+						var pv = document.getElementById("procview");
+						var pres = document.getElementById("presentation");
+						if (type === "toggle") {
+							type = (currentView === "slides"?"pv":"slides");
+						}
+						if (type== "slides") {
+							pv.style.display = "none";
+							pres.style.display = "block";
+							vt.innerHTML = 'View Preprocessed Code';
+						} else {
+							pres.style.display = "none";
+							pv.style.display = "block";
+							vt.innerHTML = 'View Slides';
+						}
+						currentView = type;
+				},
+				getProcviewEditor: function() {
+					return document.getElementById("procview").contentDocument.getElementById("editor").attributes["data"];
+				},
+				getEditor: function() {
+					return document.getElementById("editor").contentDocument.getElementById("editor").attributes["data"];
+				},
+				log: function(s) {
+					if (s === '') {
+						s = '<empty string>';
+					}
+					if (!/\r\n$/.test(s)) {
+						s += "\r\n";
+					}
+					var l = document.getElementById("log");
+					l.appendChild(document.createTextNode(s));
+					l.scrollTop = l.scrollHeight;
+				},
+				execWorker: null,
+				execute: function() {
+					var procview = app.getProcviewEditor();
+					var editor = app.getEditor();
+					var program = editor.getValue();
+					var error = false;
+					if (app.execWorker !== null) {
+						app.execWorker.terminate();
+						document.getElementById("execute").innerHTML = "Execute";
+						app.execWorker = null;
+						return;
+					}
+					procview.setValue('', 0);
+					document.getElementById('log').innerHTML = '';
+					var pptype = document.getElementById("pptype").value;
+					if (pptype !== "None") {
+						if (pptype !== "BABEL") {
+							program = tsc.compile(program, app.log, pptype==="TStoES5");
+							if (program === undefined) {
+								error = true;
+								program = '';
+							}
+						}
+						if (pptype === "BABEL" || pptype === "TSBABEL") {
+							try {
+								app.log("Preprocessing with Babel to ES5");
+								program = babel.transform(program, {
+									stage: 0,
+									externalHelpers: false,
+									optional: ["es6.spec.templateLiterals", "es6.spec.blockScoping", "es6.spec.symbols"]
+								}).code;
+							} catch (err) {
+								app.log(err.message);
+								program = '';
+								error = true;
+							}
+						}
+					}
+					procview.setValue(program, 0);
+					procview.navigateFileStart();
+					app.switchView("pv");
+					if (error) {
+						app.log("Execution aborted.");
+						return;
+					}
+					app.execWorker = new Worker("worker.js");
+					document.getElementById("execute").innerHTML = "Terminate";
+					app.execWorker.onmessage = function(e) {
+						var msg = e.data;
+						if (msg.type === "log") {
+							app.log(msg.msg);
+						} else if(msg.type === "finish") {
+							document.getElementById("execute").innerHTML = "Execute";
+							app.execWorker = null;
+						}
+					}
+					app.execWorker.postMessage(program);
+				},
+				loadExercise: function(e) {
+					var sel = e.target;
+					var exerciseFile = sel.value;
+					if (exerciseFile !== '') {
+						fetch("exercises/"+exerciseFile).then(function(rsp) {
+							if (rsp.ok) {
+								rsp.text().then(function(program) {
+									var editor = app.getEditor();
+									editor.setValue(program, 0);
+									editor.navigateFileStart();
+								});
+							} else {
+								app.log("ERROR: "+rsp.status.toString()+" - "+rsp.statusText+": "+rsp.url);
+							}
+						}).catch(function(reason) {
+							app.log('ERROR: '+reason.toString());
+						});
+					}
+					sel.selectedIndex = 0;
+				}
+			};
+			window.addEventListener('load', function() {
+				function f(type) {
+					return function() {
+						app.switchView(type);
+					};
+				}
+				app.switchView("slides");
+				document.getElementById("viewtoggle").addEventListener('click', f("toggle"));
+				document.getElementById("execute").addEventListener('click', app.execute);
+				document.getElementById("execute").disabled = false;;
+				document.getElementById("load").addEventListener('change', app.loadExercise);
+			});
+		</script>
+	</body>
+</html>

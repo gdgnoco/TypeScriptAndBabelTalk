@@ -1,3 +1,24 @@
+This license applies to all the files in the repository that do not come from outside sources.
+
+Those coming from outside sources are:
+
+You will need to visit each site to see their licensing (all open source):
+
+Remark (for the slide show). https://github.com/gnab/remark
+I made a few changes for IE support, and have made a pull request for them, see: 
+https://github.com/briansturgill/remark
+
+TypeScript, this was a clone of their development branch, necessary because I was demoing
+with async/await support which is not released yet. https://github.com/Microsoft/TypeScript
+
+Ace Editor: https://github.com/ajaxorg/ace-builds/
+Ace Editor is hard to build from scratch, so I modified (very slightly) a minified file, see the
+ace-editor directory.
+
+And of course all of the things in the node_modules and bower_components directories.
+
+--
+
 The MIT License (MIT)
 
 Copyright (c) 2015 Brian Sturgill
