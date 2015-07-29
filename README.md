@@ -6,6 +6,8 @@ To view the slides and use the dev environment just start a web server in the bu
 
 I include a copy of the built for convenience, but if you want to change things, do:
 
+```
 bower install
 npm install
 gulp // Will build then start a webserver with live-reload.
+```
